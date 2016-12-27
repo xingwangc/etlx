@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"etlx/driver"
+	"github.com/xingwangc/etlx/driver"
 )
 
 const (
