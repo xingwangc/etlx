@@ -252,9 +252,18 @@ func (t *Transaction) Exec(extArgs []driver.Command, transArgs []driver.Command,
 	fmt.Println("extract cmd", extArgs)
 	fmt.Println("transform cmd", transArgs)
 	fmt.Println("load cmd", loadArgs)
-	t.extract(extArgs)
-	t.transform(transArgs)
-	t.load(loadArgs)
+	err := t.extract(extArgs)
+	if err != nil {
+		return err
+	}
+	err = t.transform(transArgs)
+	if err != nil {
+		return err
+	}
+	err = t.load(loadArgs)
+	if err != nil {
+		return err
+	}
 	//go t.extract(extArgs)
 	//go t.transform(transArgs)
 	//go t.load(loadArgs)
