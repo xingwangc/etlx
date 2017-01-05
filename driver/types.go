@@ -145,6 +145,10 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 		return StringFromInterface(src)
 	case "float":
 		return FloatFromInterface(src)
+	case "list", "array":
+		return ArrayFromInterface(src)
+	case "map":
+		return MapFromInterface(src)
 	default:
 		return nil, fmt.Errorf("The type(%s) is not supported right now", typeStr)
 	}
