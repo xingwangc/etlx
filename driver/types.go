@@ -240,3 +240,40 @@ func DataPreProcess(src interface{}) interface{} {
 		return src
 	}
 }
+
+//transform a columns array and contents array to a map
+func ArrayToMap(columns []string, contents []interface{}) (rslt map[string]interface{}, err error) {
+	if len(columns) == 0 {
+		return nil, fmt.Errorf("Should provide a columns to define the return sequence!")
+	}
+	if len(columns) != len(contents) {
+		return nil, fmt.Errorf("columns has different length with contents!")
+	}
+	result := make(map[string]interface{})
+	for index, key := range columns {
+		result[key] = contents[index]
+	}
+
+	return result, nil
+}
+
+//transform a map to an array with sequence defined in the columns passed in
+func MapToArray(columns []string, contents map[string]interface{}) (rslt []interface{}, err error) {
+	if len(columns) == 0 {
+		return nil, fmt.Errorf("Should provide a columns to define the return sequence!")
+	}
+	if len(columns) != len(contents) {
+		return nil, fmt.Errorf("columns has different length with contents!")
+	}
+
+	result := make([]interface{}, len(contents))
+	for index, key := range columns {
+		if value, ok := contents[key]; ok {
+			result[index] = value
+		} else {
+			return nil, fmt.Errorf("there is not a key: %s defined in columns in the map!", key)
+		}
+	}
+
+	return result, nil
+}
