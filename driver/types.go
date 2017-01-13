@@ -12,6 +12,9 @@ import (
 )
 
 func StringFromInterface(val interface{}) (string, error) {
+	if nil == val {
+		return "", fmt.Errorf("Interface(%v) could not be converted to String!\n", val)
+	}
 	switch val.(type) {
 	case string:
 		return val.(string), nil
@@ -26,6 +29,9 @@ func StringFromInterface(val interface{}) (string, error) {
 }
 
 func BoolFromInterface(val interface{}) (bool, error) {
+	if nil == val {
+		return false, fmt.Errorf("Interface(%v) could not be converted to Bool!\n", val)
+	}
 	switch val.(type) {
 	case bool:
 		return val.(bool), nil
@@ -34,6 +40,10 @@ func BoolFromInterface(val interface{}) (bool, error) {
 }
 
 func IntFromInterface(val interface{}) (int64, error) {
+	if nil == val {
+		return 0, fmt.Errorf("Interface(%v) could not be converted to Int!\n", val)
+	}
+
 	switch val.(type) {
 	case float64:
 		return int64(val.(float64)), nil
@@ -51,6 +61,9 @@ func IntFromInterface(val interface{}) (int64, error) {
 }
 
 func FloatFromInterface(val interface{}) (float64, error) {
+	if nil == val {
+		return 0.0, fmt.Errorf("Interface(%v) Could not be converted to Float!\n", val)
+	}
 	switch val.(type) {
 	case float64:
 		return val.(float64), nil
@@ -74,7 +87,9 @@ func FloatFromInterface(val interface{}) (float64, error) {
 //		"2006-01-02"
 //		"2006/01/02"
 func TimeFromInterface(val interface{}, layout string) (time.Time, error) {
-	fmt.Println("time", val)
+	if nil == val {
+		return time.Now(), fmt.Errorf("Interface(%v) could not be converted to Time!\n", val)
+	}
 	switch val.(type) {
 	case time.Time:
 		return val.(time.Time), nil
@@ -90,6 +105,9 @@ func TimeFromInterface(val interface{}, layout string) (time.Time, error) {
 }
 
 func MapFromInterface(val interface{}) (map[string]interface{}, error) {
+	if nil == val {
+		return map[string]interface{}{}, fmt.Errorf("Interface(%v) could not be converted to map[string]interface{}!\n", val)
+	}
 	switch val.(type) {
 	case map[string]interface{}:
 		return val.(map[string]interface{}), nil
@@ -99,6 +117,9 @@ func MapFromInterface(val interface{}) (map[string]interface{}, error) {
 }
 
 func ArrayFromInterface(val interface{}) ([]interface{}, error) {
+	if nil == val {
+		return []interface{}{}, fmt.Errorf("Interface(%v) could not be converted to []interface{}!\n", val)
+	}
 	switch v := val.(type) {
 	case []interface{}:
 		return v, nil
