@@ -5,7 +5,9 @@ import (
 	//	"reflect"
 	"encoding/json"
 	"math"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -82,6 +84,39 @@ func FloatFromInterface(val interface{}) (float64, error) {
 	return 0.0, fmt.Errorf("Interface(%v) Could not be converted to Float!\n", val)
 }
 
+//convert the time format from 2006-1-2 to 2006-01-02 or 2006/1/2 to 2006/01/02
+func formatTime(val string, format string) (string, error) {
+	rslt := val
+	splitStr := "-"
+	if regexp.MustCompile("[0-9]+-[0-9]+-[0-9]").MatchString(val) {
+		splitStr = "-"
+	} else if regexp.MustCompile("[0-9]+/[0-9]+/[0-9]").MatchString(val) {
+		splitStr = "/"
+	} else {
+		return val, nil
+	}
+
+	items := strings.Split(val, splitStr)
+	if len(items) != 3 {
+		return "", fmt.Errorf("wrong time format:", val)
+	}
+
+	rslt = items[0]
+	if len(items[1]) == 1 {
+		rslt = rslt + splitStr + "0" + items[1]
+	} else {
+		rslt = rslt + splitStr + items[1]
+	}
+
+	if len(items[2]) == 1 {
+		rslt = rslt + splitStr + "0" + items[2]
+	} else {
+		rslt = rslt + splitStr + items[2]
+	}
+
+	return rslt, nil
+}
+
 //layout string indicating which format of time to return. it could be:
 //	layout: "20160102"
 //		"2006-01-02"
@@ -96,7 +131,13 @@ func TimeFromInterface(val interface{}, layout string) (time.Time, error) {
 	case int:
 		return time.Unix(int64(val.(int)), 0), nil
 	case string:
-		tval, err := time.Parse(layout, val.(string))
+		timestr, err := formatTime(val.(string), layout)
+		if err != nil {
+			return time.Now(), fmt.Errorf("Interface(%v) could not be converted to Time!\n", val)
+		}
+
+		tval, err := time.Parse(layout, timestr)
+		//tval, err := time.Parse(layout, val.(string))
 		if err == nil {
 			return tval, err
 		}
@@ -150,7 +191,6 @@ func CopyValue(src interface{}, dst interface{}) error {
 		for _, value := range slice {
 			*d = append(*d, value)
 		}
-		fmt.Println("dst:", dst)
 	default:
 		err = fmt.Errorf("Usupported type of destination")
 	}
