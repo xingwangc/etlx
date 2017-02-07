@@ -280,7 +280,7 @@ func (cmd *Command) Construction(src interface{}) error {
 }
 
 type BatchStruct struct {
-	BatchSize int    `json:"batch_size"`
+	BatchSize int64  `json:"batch_size"`
 	BatchCtl  string `json:"batch_control"`
 }
 

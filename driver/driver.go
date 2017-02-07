@@ -19,6 +19,8 @@ type LoadDriver interface {
 
 //Interface of extract handler
 type Extract interface {
+	//SetBatch should be called before Command to make sure the setting is valid
+	SetBatch(limit int64, offset int64)
 	Command(args []Command) (cmd interface{}, _ error)
 	Query(cmd interface{}) (Rows, error)
 	Close() error

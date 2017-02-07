@@ -150,7 +150,7 @@ func Open(eName, tName, lName string) (*Transaction, error) {
 
 	tsact.extractCh = make(chan string)
 	tsact.transformCh = make(chan string)
-	tsact.limit = 1000 //set default batch size to 1000
+	tsact.limit = 0 //set default batch size to 0
 	tsact.offset = 0
 
 	return tsact, nil
@@ -271,8 +271,14 @@ func (t *Transaction) Exec(extArgs []driver.Command, transArgs []driver.Command,
 	return nil
 }
 
-func (t *Transaction) SetBatchSize(size int64) {
-	t.limit = size
+func (t *Transaction) SetBatchSize(batch int64) {
+	if t.limit == 0 {
+		t.limit = batch
+	} else {
+		t.offset += t.limit
+		t.limit = batch
+	}
+	t.extractHandler.SetBatch(t.limit, t.offset)
 }
 
 func (t *Transaction) updateOffset(offset int64) {
