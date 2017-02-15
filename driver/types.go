@@ -1,10 +1,10 @@
 package driver
 
 import (
-	"fmt"
-	//	"reflect"
 	"encoding/json"
+	"fmt"
 	"math"
+	//"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -210,6 +210,8 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 		return ArrayFromInterface(src)
 	case "map":
 		return MapFromInterface(src)
+	case "time":
+		return TimeFromInterface(src, "2006-01-02")
 	default:
 		return nil, fmt.Errorf("The type(%s) is not supported right now", typeStr)
 	}
