@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	//"reflect"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -309,8 +309,8 @@ func ArrayToMap(columns []string, contents []interface{}) (rslt map[string]inter
 	if len(columns) == 0 {
 		return nil, fmt.Errorf("Should provide a columns to define the return sequence!")
 	}
-	if len(columns) != len(contents) {
-		return nil, fmt.Errorf("columns has different length with contents!")
+	if len(columns) < len(contents) {
+		return nil, fmt.Errorf("length of columns should >= length of contents!")
 	}
 	result := make(map[string]interface{})
 	for index, key := range columns {
@@ -325,18 +325,36 @@ func MapToArray(columns []string, contents map[string]interface{}) (rslt []inter
 	if len(columns) == 0 {
 		return nil, fmt.Errorf("Should provide a columns to define the return sequence!")
 	}
-	if len(columns) != len(contents) {
-		return nil, fmt.Errorf("columns has different length with contents!")
+	if len(columns) < len(contents) {
+		return nil, fmt.Errorf("length of columns should >= length of contents!")
 	}
 
-	result := make([]interface{}, len(contents))
+	result := make([]interface{}, len(columns))
 	for index, key := range columns {
 		if value, ok := contents[key]; ok {
 			result[index] = value
 		} else {
-			return nil, fmt.Errorf("there is not a key: %s defined in columns in the map!", key)
+			result[index] = nil
 		}
 	}
 
 	return result, nil
+}
+
+//format map[string]interface{}
+//Sometime data read from sql was not with the format it is, e.g. string in sql
+//would be regturned as []byte. So is most case using those data we should
+//convert them back first
+func FormatMap(obj map[string]interface{}) {
+	for key, value := range obj {
+		if value != nil {
+			content := reflect.ValueOf(value)
+			switch content.Kind() {
+			case reflect.Slice:
+				obj[key] = string(content.Bytes())
+			default:
+				obj[key] = content.Interface()
+			}
+		}
+	}
 }
