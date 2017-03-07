@@ -13,6 +13,57 @@ import (
 	"github.com/ghodss/yaml"
 )
 
+type Point [2]float64 //0-lng, 1-lat
+type LineString []Point
+type MultiPoint []Point
+type Polygon []MultiPoint
+type MultiLineString []LineString
+type MultiPolygon []Polygon
+type Geometry struct {
+	Type        string      `json:"type" bson:"type"`
+	Coordinates interface{} `json:"coordinates" bson"coordinates"`
+}
+
+type GeometryCollection struct {
+	Type       string     `json:"type" bson:"type"`
+	Geometries []Geometry `json:"geometries" bson:"geometries"`
+}
+
+func (geom *Geometry) UnmarshalJSON(b []byte) error {
+	var tmp struct {
+		Type        string           `json:"type"`
+		Coordinates *json.RawMessage `json:"coordinates"`
+	}
+
+	err := yaml.Unmarshal(b, &tmp)
+	if err != nil {
+		return err
+	}
+
+	var coordinates interface{}
+	geom.Type = tmp.Type
+	switch tmp.Type {
+	case "Point":
+		coordinates = Point{}
+	case "LineString":
+		coordinates = LineString{}
+	case "Polygon":
+		coordinates = Polygon{}
+	case "MultiPoint":
+		coordinates = MultiPoint{}
+	case "MultiLineString":
+		coordinates = MultiLineString{}
+	case "MultiPolygon":
+		coordinates = MultiPolygon{}
+	}
+	err = yaml.Unmarshal(*tmp.Coordinates, &coordinates)
+	if err != nil {
+		return err
+	}
+	geom.Coordinates = coordinates
+	return nil
+}
+
 func StringFromInterface(val interface{}) (string, error) {
 	if nil == val {
 		return "", fmt.Errorf("Interface(%v) could not be converted to String!\n", val)
@@ -171,6 +222,27 @@ func ArrayFromInterface(val interface{}) ([]interface{}, error) {
 	return []interface{}{}, fmt.Errorf("Interface(%v) could not be converted to []interface{}!\n", val)
 }
 
+func GeometryFromInterface(val interface{}) (Geometry, error) {
+	if nil == val {
+		return Geometry{}, fmt.Errorf("Interface(%v) could not be converted to Geometry!\n", val)
+	}
+
+	switch val.(type) {
+	case Geometry:
+		return val.(Geometry), nil
+	case string:
+		geometry := Geometry{}
+		err := json.Unmarshal([]byte(val.(string)), &geometry)
+		return geometry, err
+	case []byte:
+		geometry := Geometry{}
+		err := json.Unmarshal(val.([]byte), &geometry)
+		return geometry, err
+	default:
+		return Geometry{}, fmt.Errorf("Interface(%v) could not be converted to Geometry!\n", val)
+	}
+}
+
 func CopyValue(src interface{}, dst interface{}) error {
 	var err error = nil
 
@@ -212,6 +284,8 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 		return MapFromInterface(src)
 	case "time":
 		return TimeFromInterface(src, "2006-01-02")
+	case "geometry":
+		return GeometryFromInterface(src)
 	default:
 		return nil, fmt.Errorf("The type(%s) is not supported right now", typeStr)
 	}
