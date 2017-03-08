@@ -432,3 +432,91 @@ func FormatMap(obj map[string]interface{}) {
 		}
 	}
 }
+
+//NamePlace identify the index of the specificed filed in the array
+type NamePlace struct {
+	Name  string
+	Index int
+}
+
+type StrProcessor struct {
+	//name of the string to be processed in a map
+	SrcName string
+	//defined the name corresponding to which value in the result array
+	DstDescriptor []NamePlace
+
+	//right now support regexp and split
+	Command string
+	//if command is regexp, this is the expression.
+	//if the command is split, this is the seperator
+	ProcDescriptor string
+}
+
+func (strproc StrProcessor) regexProc(srcStr string) (map[string]string, error) {
+	rslt := make(map[string]string)
+
+	re := regexp.MustCompile(strproc.ProcDescriptor)
+
+	tmp := re.FindAllString(srcStr, -1)
+	tmplength := len(tmp)
+	for _, index := range strproc.DstDescriptor {
+		if index.Index > tmplength {
+			rslt[index.Name] = ""
+		} else if index.Index < 0 {
+			rslt[index.Name] = tmp[tmplength+index.Index]
+		} else {
+			rslt[index.Name] = tmp[index.Index]
+		}
+	}
+
+	return rslt, nil
+}
+
+//split processing will trim the space for the result by default.
+func (strproc StrProcessor) splitProc(srcStr string) (map[string]string, error) {
+	rslt := make(map[string]string)
+
+	tmp := strings.Split(srcStr, strproc.ProcDescriptor)
+	tmplength := len(tmp)
+	for _, index := range strproc.DstDescriptor {
+		if index.Index > tmplength {
+			rslt[index.Name] = ""
+		} else if index.Index < 0 {
+			rslt[index.Name] = strings.TrimSpace(tmp[tmplength+index.Index])
+		} else {
+			rslt[index.Name] = strings.TrimSpace(tmp[index.Index])
+		}
+	}
+
+	return rslt, nil
+}
+
+//function "Process" to process a string with predefined configuration.
+//It support 2 parameters, the 1st one is the string which would be processing.
+//If the 1st string parameter is empty, it will use the predefined SrcName to
+//find out the string to be processing in the second parameter with map[sting]
+//type.
+//
+//Just support only 2 kinds of command right now, one is regex and the other one
+//is split.
+func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}) (map[string]string, error) {
+	strObj := ""
+	if len(srcStr) > 0 {
+		strObj = srcStr
+	} else if str, ok := srcMap[strproc.SrcName]; ok {
+		if strObj, ok = str.(string); !ok {
+			return map[string]string{}, fmt.Errorf("The [%s] filed in the map[string]interface{} provided is not a string", strproc.SrcName)
+		}
+	} else {
+		return map[string]string{}, fmt.Errorf("You should provide an String, or a map[string]interface{} with the [%s] field for processing", strproc.SrcName)
+	}
+
+	switch strproc.Command {
+	case "regex":
+		return strproc.regexProc(strObj)
+	case "split":
+		return strproc.splitProc(strObj)
+	default:
+		return map[string]string{}, fmt.Errorf("The processor was initialized with an unsupported command: [%s]", strproc.Command)
+	}
+}
