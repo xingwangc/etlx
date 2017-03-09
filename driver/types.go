@@ -77,6 +77,9 @@ func StringFromInterface(val interface{}) (string, error) {
 		return strconv.FormatInt(val.(int64), 10), nil
 	case []uint8:
 		return string(val.([]uint8)), nil
+	case time.Time:
+		valt := val.(time.Time)
+		return valt.String(), nil
 	}
 	return "", fmt.Errorf("Interface(%v) could not be converted to String!\n", val)
 }
@@ -143,6 +146,8 @@ func formatTime(val string, format string) (string, error) {
 		splitStr = "-"
 	} else if regexp.MustCompile("[0-9]+/[0-9]+/[0-9]").MatchString(val) {
 		splitStr = "/"
+	} else if regexp.MustCompile("[0-9]+.[0-9]+.[0-9]").MatchString(val) {
+		splitStr = "."
 	} else {
 		return val, nil
 	}
@@ -150,6 +155,10 @@ func formatTime(val string, format string) (string, error) {
 	items := strings.Split(val, splitStr)
 	if len(items) != 3 {
 		return "", fmt.Errorf("wrong time format:", val)
+	}
+
+	if splitStr == "." {
+		splitStr = "-"
 	}
 
 	rslt = items[0]
@@ -399,9 +408,9 @@ func MapToArray(columns []string, contents map[string]interface{}) (rslt []inter
 	if len(columns) == 0 {
 		return nil, fmt.Errorf("Should provide a columns to define the return sequence!")
 	}
-	if len(columns) < len(contents) {
-		return nil, fmt.Errorf("length of columns should >= length of contents!")
-	}
+	//if len(columns) < len(contents) {
+	//	return nil, fmt.Errorf("length of columns should >= length of contents!")
+	//}
 
 	result := make([]interface{}, len(columns))
 	for index, key := range columns {
@@ -504,9 +513,11 @@ func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}
 	if len(srcStr) > 0 {
 		strObj = srcStr
 	} else if str, ok := srcMap[strproc.SrcName]; ok {
-		if strObj, ok = str.(string); !ok {
-			return map[string]string{}, fmt.Errorf("The [%s] filed in the map[string]interface{} provided is not a string", strproc.SrcName)
+		obj, err := StringFromInterface(str)
+		if err != nil {
+			return map[string]string{}, err
 		}
+		strObj = obj
 	} else {
 		return map[string]string{}, fmt.Errorf("You should provide an String, or a map[string]interface{} with the [%s] field for processing", strproc.SrcName)
 	}
