@@ -531,3 +531,16 @@ func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}
 		return map[string]string{}, fmt.Errorf("The processor was initialized with an unsupported command: [%s]", strproc.Command)
 	}
 }
+
+//Batch opreation suppoted
+type Batch struct {
+	Flag   bool //true enable, false: disable
+	Limit  int64
+	Offset int64
+}
+
+func (bt *Batch) SetBatch(limit, offset int64) {
+	bt.Flag = true
+	bt.Limit = limit
+	bt.Offset = offset
+}
