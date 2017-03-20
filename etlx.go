@@ -214,7 +214,7 @@ func (t *Transaction) extract(args []driver.Command) error {
 func (t *Transaction) transform(args []driver.Command) error {
 	cmd, err := t.transformHandler.Command(args)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	//	sig := <-t.extractCh
