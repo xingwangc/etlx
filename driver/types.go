@@ -91,6 +91,12 @@ func BoolFromInterface(val interface{}) (bool, error) {
 	switch val.(type) {
 	case bool:
 		return val.(bool), nil
+	case string:
+		if val.(string) == "true" {
+			return true, nil
+		} else {
+			return false, nil
+		}
 	}
 	return false, fmt.Errorf("Interface(%v) could not be converted to Bool!\n", val)
 }
@@ -295,6 +301,8 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 		return TimeFromInterface(src, "2006-01-02")
 	case "geometry":
 		return GeometryFromInterface(src)
+	case "bool":
+		return BoolFromInterface(src)
 	default:
 		return nil, fmt.Errorf("The type(%s) is not supported right now", typeStr)
 	}
