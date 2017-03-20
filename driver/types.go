@@ -500,6 +500,24 @@ func (strproc StrProcessor) splitProc(srcStr string) (map[string]string, error) 
 	return rslt, nil
 }
 
+//replace processing is reusing the command configuration of regex and split.
+//For replace processing the dst field is at 0 index in dst array.
+func (strproc StrProcessor) replaceProc(srcStr string) (map[string]string, error) {
+	rslt := make(map[string]string)
+
+	tmp := strings.Split(strproc.ProcDescriptor, "|")
+	if len(tmp) != 2 {
+		return map[string]string{}, fmt.Errorf("The ProcDescriptor[%s] has a wrong format!", strproc.ProcDescriptor)
+	}
+	old := tmp[0]
+	new := tmp[1]
+
+	newStr := strings.Replace(srcStr, old, new, -1)
+	rslt[strproc.DstDescriptor[0].Name] = newStr
+
+	return rslt, nil
+}
+
 //function "Process" to process a string with predefined configuration.
 //It support 2 parameters, the 1st one is the string which would be processing.
 //If the 1st string parameter is empty, it will use the predefined SrcName to
@@ -527,6 +545,8 @@ func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}
 		return strproc.regexProc(strObj)
 	case "split":
 		return strproc.splitProc(strObj)
+	case "replace":
+		return strproc.replaceProc(strObj)
 	default:
 		return map[string]string{}, fmt.Errorf("The processor was initialized with an unsupported command: [%s]", strproc.Command)
 	}
