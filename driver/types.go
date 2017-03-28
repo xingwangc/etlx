@@ -13,6 +13,11 @@ import (
 	"github.com/ghodss/yaml"
 )
 
+const (
+	PointLngIndex int = iota
+	PointLatIndex
+)
+
 type Point [2]float64 //0-lng, 1-lat
 type LineString []Point
 type MultiPoint []Point
@@ -20,8 +25,8 @@ type Polygon []MultiPoint
 type MultiLineString []LineString
 type MultiPolygon []Polygon
 type Geometry struct {
-	Type        string      `json:"type" bson:"type"`
-	Coordinates interface{} `json:"coordinates" bson"coordinates"`
+	Type        string      `json:"type" bson:"type" tag:"type"`
+	Coordinates interface{} `json:"coordinates" bson:"coordinates" tag:"coordinates"`
 }
 
 type GeometryCollection struct {
@@ -430,6 +435,30 @@ func MapToArray(columns []string, contents map[string]interface{}) (rslt []inter
 	}
 
 	return result, nil
+}
+
+//transform a struct to map. The struct should define the tag field
+func StructToMap(src interface{}) (rslt map[string]interface{}, err error) {
+	rslt = make(map[string]interface{})
+
+	t := reflect.TypeOf(src)
+	for i := 0; i < t.NumField(); i++ {
+		key := t.Field(i).Tag.Get("tag")
+		rslt[key] = reflect.ValueOf(src).Field(i).Interface()
+	}
+	return rslt, nil
+}
+
+//transform a struct to array.
+
+func StructToArray(columns []string, src interface{}) (rslt []interface{}, err error) {
+
+	tmpMap, err := StructToMap(src)
+	if err != nil {
+		return rslt, err
+	}
+
+	return MapToArray(columns, tmpMap)
 }
 
 //format map[string]interface{}
