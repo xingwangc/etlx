@@ -25,8 +25,8 @@ type Polygon []MultiPoint
 type MultiLineString []LineString
 type MultiPolygon []Polygon
 type Geometry struct {
-	Type        string      `json:"type" bson:"type" tag:"type"`
-	Coordinates interface{} `json:"coordinates" bson:"coordinates" tag:"coordinates"`
+	Type        string      `json:"type" bson:"type" map:"type"`
+	Coordinates interface{} `json:"coordinates" bson:"coordinates" map:"coordinates"`
 }
 
 type GeometryCollection struct {
@@ -437,20 +437,19 @@ func MapToArray(columns []string, contents map[string]interface{}) (rslt []inter
 	return result, nil
 }
 
-//transform a struct to map. The struct should define the tag field
+//transform a struct to map. The struct should define the map field
 func StructToMap(src interface{}) (rslt map[string]interface{}, err error) {
 	rslt = make(map[string]interface{})
 
 	t := reflect.TypeOf(src)
 	for i := 0; i < t.NumField(); i++ {
-		key := t.Field(i).Tag.Get("tag")
+		key := t.Field(i).Tag.Get("map")
 		rslt[key] = reflect.ValueOf(src).Field(i).Interface()
 	}
 	return rslt, nil
 }
 
 //transform a struct to array.
-
 func StructToArray(columns []string, src interface{}) (rslt []interface{}, err error) {
 
 	tmpMap, err := StructToMap(src)
@@ -459,6 +458,35 @@ func StructToArray(columns []string, src interface{}) (rslt []interface{}, err e
 	}
 
 	return MapToArray(columns, tmpMap)
+}
+
+//transform map to a structure
+func MapToStructure(src map[string]interface{}, obj interface{}) error {
+	structValue := reflect.ValueOf(obj).Elem()
+
+	t := structValue.Type()
+	for i := 0; i < t.NumField(); i++ {
+		key := t.Field(i).Tag.Get("map")
+
+		fieldToSet := structValue.Field(i)
+		if !fieldToSet.IsValid() {
+			return fmt.Errorf("Field: [%s] is invalid!", key)
+		}
+
+		if !fieldToSet.CanSet() {
+			return fmt.Errorf("Field: [%s] is not setable!", key)
+		}
+
+		if value, ok := src[key]; ok {
+			rfValue := reflect.ValueOf(value)
+			if fieldToSet.Type() != rfValue.Type() {
+				rfValue = rfValue.Convert(fieldToSet.Type())
+			}
+			fieldToSet.Set(rfValue)
+		}
+	}
+
+	return nil
 }
 
 //format map[string]interface{}
