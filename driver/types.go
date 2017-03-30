@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"gopkg.in/mgo.v2/bson"
 )
 
 const (
@@ -263,6 +264,42 @@ func GeometryFromInterface(val interface{}) (Geometry, error) {
 	}
 }
 
+func BsonRegExFromInterface(val interface{}) (bson.RegEx, error) {
+	if nil == val {
+		return bson.RegEx{}, fmt.Errorf("Interface(%v) could not be converted to bson.RegEx!\n", val)
+	}
+
+	reg := []interface{}{}
+	switch val.(type) {
+	case bson.RegEx:
+		return val.(bson.RegEx), nil
+	case []interface{}:
+		reg = val.([]interface{})
+	default:
+		return bson.RegEx{}, fmt.Errorf("Interface(%v) could not be converted to bson.RegEx!\n", val)
+	}
+
+	if len(reg) == 0 || len(reg) > 2 {
+		return bson.RegEx{}, fmt.Errorf("Interface(%v) to convert to bson.RegEx should be a [] has at leasta pattern !\n", val)
+	} else if len(reg) == 1 {
+		pattern, err := StringFromInterface(reg[0])
+		if err != nil {
+			return bson.RegEx{}, fmt.Errorf("pattern to bson.RegEx should be a string !\n", val)
+		}
+		return bson.RegEx{pattern, ""}, nil
+	} else {
+		pattern, err := StringFromInterface(reg[0])
+		if err != nil {
+			return bson.RegEx{}, fmt.Errorf("pattern to bson.RegEx should be a string !\n", val)
+		}
+		option, err := StringFromInterface(reg[0])
+		if err != nil {
+			return bson.RegEx{}, fmt.Errorf("option to bson.RegEx should be a string !\n", val)
+		}
+		return bson.RegEx{pattern, option}, nil
+	}
+}
+
 func CopyValue(src interface{}, dst interface{}) error {
 	var err error = nil
 
@@ -308,6 +345,8 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 		return GeometryFromInterface(src)
 	case "bool":
 		return BoolFromInterface(src)
+	case "bson.RegEx":
+		return BsonRegExFromInterface(src)
 	default:
 		return nil, fmt.Errorf("The type(%s) is not supported right now", typeStr)
 	}
