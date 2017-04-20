@@ -158,7 +158,7 @@ func formatTime(val string, format string) (string, error) {
 		splitStr = "-"
 	} else if regexp.MustCompile("[0-9]+/[0-9]+/[0-9]").MatchString(val) {
 		splitStr = "/"
-	} else if regexp.MustCompile("[0-9]+.[0-9]+.[0-9]").MatchString(val) {
+	} else if regexp.MustCompile("[0-9]+\\.[0-9]+\\.[0-9]").MatchString(val) {
 		splitStr = "."
 	} else {
 		return val, nil
