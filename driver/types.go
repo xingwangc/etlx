@@ -81,6 +81,10 @@ func StringFromInterface(val interface{}) (string, error) {
 		return strconv.Itoa(val.(int)), nil
 	case int64:
 		return strconv.FormatInt(val.(int64), 10), nil
+	case float64:
+		return strconv.FormatFloat(val.(float64), 'f', -1, 64), nil
+	case float32:
+		return strconv.FormatFloat(float64(val.(float32)), 'f', -1, 32), nil
 	case []uint8:
 		return string(val.([]uint8)), nil
 	case time.Time:
