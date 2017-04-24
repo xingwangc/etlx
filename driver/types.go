@@ -569,8 +569,8 @@ type StrProcessor struct {
 	ProcDescriptor string
 }
 
-func (strproc StrProcessor) regexProc(srcStr string) (map[string]string, error) {
-	rslt := make(map[string]string)
+func (strproc StrProcessor) regexProc(srcStr string) (map[string]interface{}, error) {
+	rslt := make(map[string]interface{})
 
 	re := regexp.MustCompile(strproc.ProcDescriptor)
 
@@ -580,7 +580,12 @@ func (strproc StrProcessor) regexProc(srcStr string) (map[string]string, error) 
 		if index.Index > tmplength {
 			rslt[index.Name] = ""
 		} else if index.Index < 0 {
-			rslt[index.Name] = tmp[tmplength+index.Index]
+			//-100 to indicate return the result list directly
+			if index.Index == -100 && len(strproc.DstDescriptor) == 1 {
+				rslt[index.Name] = tmp
+			} else {
+				rslt[index.Name] = tmp[tmplength+index.Index]
+			}
 		} else {
 			rslt[index.Name] = tmp[index.Index]
 		}
@@ -590,8 +595,8 @@ func (strproc StrProcessor) regexProc(srcStr string) (map[string]string, error) 
 }
 
 //split processing will trim the space for the result by default.
-func (strproc StrProcessor) splitProc(srcStr string) (map[string]string, error) {
-	rslt := make(map[string]string)
+func (strproc StrProcessor) splitProc(srcStr string) (map[string]interface{}, error) {
+	rslt := make(map[string]interface{})
 
 	tmp := strings.Split(srcStr, strproc.ProcDescriptor)
 	tmplength := len(tmp)
@@ -599,7 +604,12 @@ func (strproc StrProcessor) splitProc(srcStr string) (map[string]string, error) 
 		if index.Index > tmplength {
 			rslt[index.Name] = ""
 		} else if index.Index < 0 {
-			rslt[index.Name] = strings.TrimSpace(tmp[tmplength+index.Index])
+			//-100 to indicate return the result list directly
+			if index.Index == -100 && len(strproc.DstDescriptor) == 1 {
+				rslt[index.Name] = tmp
+			} else {
+				rslt[index.Name] = strings.TrimSpace(tmp[tmplength+index.Index])
+			}
 		} else {
 			rslt[index.Name] = strings.TrimSpace(tmp[index.Index])
 		}
@@ -610,12 +620,12 @@ func (strproc StrProcessor) splitProc(srcStr string) (map[string]string, error) 
 
 //replace processing is reusing the command configuration of regex and split.
 //For replace processing the dst field is at 0 index in dst array.
-func (strproc StrProcessor) replaceProc(srcStr string) (map[string]string, error) {
-	rslt := make(map[string]string)
+func (strproc StrProcessor) replaceProc(srcStr string) (map[string]interface{}, error) {
+	rslt := make(map[string]interface{})
 
 	tmp := strings.Split(strproc.ProcDescriptor, "|")
 	if len(tmp) != 2 {
-		return map[string]string{}, fmt.Errorf("The ProcDescriptor[%s] has a wrong format!", strproc.ProcDescriptor)
+		return map[string]interface{}{}, fmt.Errorf("The ProcDescriptor[%s] has a wrong format!", strproc.ProcDescriptor)
 	}
 	old := tmp[0]
 	new := tmp[1]
@@ -634,18 +644,18 @@ func (strproc StrProcessor) replaceProc(srcStr string) (map[string]string, error
 //
 //Just support only 2 kinds of command right now, one is regex and the other one
 //is split.
-func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}) (map[string]string, error) {
+func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}) (map[string]interface{}, error) {
 	strObj := ""
 	if len(srcStr) > 0 {
 		strObj = srcStr
 	} else if str, ok := srcMap[strproc.SrcName]; ok {
 		obj, err := StringFromInterface(str)
 		if err != nil {
-			return map[string]string{}, err
+			return map[string]interface{}{}, err
 		}
 		strObj = obj
 	} else {
-		return map[string]string{}, fmt.Errorf("You should provide an String, or a map[string]interface{} with the [%s] field for processing", strproc.SrcName)
+		return map[string]interface{}{}, fmt.Errorf("You should provide an String, or a map[string]interface{} with the [%s] field for processing", strproc.SrcName)
 	}
 
 	switch strproc.Command {
@@ -656,7 +666,7 @@ func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}
 	case "replace":
 		return strproc.replaceProc(strObj)
 	default:
-		return map[string]string{}, fmt.Errorf("The processor was initialized with an unsupported command: [%s]", strproc.Command)
+		return map[string]interface{}{}, fmt.Errorf("The processor was initialized with an unsupported command: [%s]", strproc.Command)
 	}
 }
 
