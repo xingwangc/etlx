@@ -331,6 +331,20 @@ func CopyValue(src interface{}, dst interface{}) error {
 	return err
 }
 
+func JsonFromMap(src map[string]interface{}, columns []string) ([]byte, error) {
+	container := make(map[string]interface{})
+
+	for _, key := range columns {
+		if value, ok := src[key]; ok {
+			container[key] = value
+		} else {
+			container[key] = nil
+		}
+	}
+
+	return json.Marshal(container)
+}
+
 func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 	switch typeStr {
 	case "int":
