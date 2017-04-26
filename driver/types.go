@@ -331,16 +331,96 @@ func CopyValue(src interface{}, dst interface{}) error {
 	return err
 }
 
-func JsonFromMap(src map[string]interface{}, columns []string) ([]byte, error) {
-	container := make(map[string]interface{})
-
-	for _, key := range columns {
-		if value, ok := src[key]; ok {
-			container[key] = value
-		} else {
-			container[key] = nil
+func initInterfaceInMap(obj map[string]interface{}) {
+	for key, item := range obj {
+		switch item.(type) {
+		case map[string]interface{}:
+			initInterfaceInMap(item.(map[string]interface{}))
+		case []interface{}:
+			obj[key] = []interface{}{}
+		default:
+			obj[key] = nil
 		}
 	}
+}
+
+func setMapValue(obj map[string]interface{}, key string, value interface{}) error {
+	for k, item := range obj {
+		if k == key {
+			obj[k] = value
+			return nil
+		} else {
+			switch item.(type) {
+			case map[string]interface{}:
+				err := setMapValue(item.(map[string]interface{}), key, value)
+				if err == nil {
+					return nil
+				}
+			default:
+				continue
+			}
+		}
+	}
+	return fmt.Errorf("Did not find the key:%s in the template!", key)
+}
+
+func removeNilValueFromMap(obj map[string]interface{}) {
+	for key, value := range obj {
+		if value == nil {
+			delete(obj, key)
+		} else {
+			switch value.(type) {
+			case map[string]interface{}:
+				if len(value.(map[string]interface{})) == 0 {
+					delete(obj, key)
+				} else {
+					removeNilValueFromMap(value.(map[string]interface{}))
+				}
+			case []interface{}:
+				if len(value.([]interface{})) == 0 {
+					delete(obj, key)
+				} else {
+					for _, item := range value.([]interface{}) {
+						switch item.(type) {
+						case map[string]interface{}:
+							removeNilValueFromMap(item.(map[string]interface{}))
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func JsonFromMap(src map[string]interface{}, columns []string, template map[string]interface{}) ([]byte, error) {
+	container := template
+
+	if len(container) == 0 {
+		container = make(map[string]interface{})
+		for _, key := range columns {
+			if value, ok := src[key]; ok {
+				container[key] = value
+			} else {
+				container[key] = nil
+			}
+		}
+	} else {
+		//initialize all fields of the template to nil
+		initInterfaceInMap(container)
+
+		for _, key := range columns {
+			if value, ok := src[key]; ok {
+				err := setMapValue(container, key, value)
+				if err != nil {
+					return []byte{}, err
+				}
+			}
+		}
+	}
+
+	removeNilValueFromMap(container)
+	//do twice to remove empty map
+	removeNilValueFromMap(container)
 
 	return json.Marshal(container)
 }
