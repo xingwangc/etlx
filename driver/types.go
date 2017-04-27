@@ -671,8 +671,8 @@ func (strproc StrProcessor) regexProc(srcStr string) (map[string]interface{}, er
 	tmp := re.FindAllString(srcStr, -1)
 	tmplength := len(tmp)
 	for _, index := range strproc.DstDescriptor {
-		if index.Index > tmplength {
-			rslt[index.Name] = ""
+		if tmplength == 0 || srcStr == "" || index.Index >= tmplength {
+			rslt[index.Name] = nil
 		} else if index.Index < 0 {
 			//-100 to indicate return the result list directly
 			if index.Index == -100 && len(strproc.DstDescriptor) == 1 {
@@ -695,8 +695,8 @@ func (strproc StrProcessor) splitProc(srcStr string) (map[string]interface{}, er
 	tmp := strings.Split(srcStr, strproc.ProcDescriptor)
 	tmplength := len(tmp)
 	for _, index := range strproc.DstDescriptor {
-		if index.Index > tmplength {
-			rslt[index.Name] = ""
+		if tmplength == 0 || srcStr == "" || index.Index >= tmplength {
+			rslt[index.Name] = nil
 		} else if index.Index < 0 {
 			//-100 to indicate return the result list directly
 			if index.Index == -100 && len(strproc.DstDescriptor) == 1 {
@@ -749,7 +749,8 @@ func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}
 		}
 		strObj = obj
 	} else {
-		return map[string]interface{}{}, fmt.Errorf("You should provide an String, or a map[string]interface{} with the [%s] field for processing", strproc.SrcName)
+		//do not return empty map, use the empty string to make sure a map returned with dest field set to nil
+		strObj = ""
 	}
 
 	switch strproc.Command {
