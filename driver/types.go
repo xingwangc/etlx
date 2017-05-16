@@ -648,8 +648,12 @@ func FormatMap(obj map[string]interface{}) {
 
 //NamePlace identify the index of the specificed filed in the array
 type NamePlace struct {
-	Name  string
-	Index int
+	Name string
+	//for regex, split the Dst is the index of value which will be
+	//set to destination.
+	//for replace, this field is not used.
+	//for mapping, the Dst is the value which is used to recover the source value
+	Dst interface{}
 }
 
 type StrProcessor struct {
@@ -672,18 +676,26 @@ func (strproc StrProcessor) regexProc(srcStr string) (map[string]interface{}, er
 
 	tmp := re.FindAllString(srcStr, -1)
 	tmplength := len(tmp)
-	for _, index := range strproc.DstDescriptor {
-		if tmplength == 0 || srcStr == "" || index.Index >= tmplength {
-			rslt[index.Name] = nil
-		} else if index.Index < 0 {
+	for _, dst := range strproc.DstDescriptor {
+		var index int
+		if i, ok := dst.Dst.(int64); ok {
+			index = int(i)
+		} else {
+			rslt[dst.Name] = nil
+			continue
+		}
+
+		if tmplength == 0 || srcStr == "" || index >= tmplength {
+			rslt[dst.Name] = nil
+		} else if index < 0 {
 			//-100 to indicate return the result list directly
-			if index.Index == -100 && len(strproc.DstDescriptor) == 1 {
-				rslt[index.Name] = tmp
+			if index == -100 && len(strproc.DstDescriptor) == 1 {
+				rslt[dst.Name] = tmp
 			} else {
-				rslt[index.Name] = tmp[tmplength+index.Index]
+				rslt[dst.Name] = tmp[tmplength+index]
 			}
 		} else {
-			rslt[index.Name] = tmp[index.Index]
+			rslt[dst.Name] = tmp[index]
 		}
 	}
 
@@ -696,18 +708,26 @@ func (strproc StrProcessor) splitProc(srcStr string) (map[string]interface{}, er
 
 	tmp := strings.Split(srcStr, strproc.ProcDescriptor)
 	tmplength := len(tmp)
-	for _, index := range strproc.DstDescriptor {
-		if tmplength == 0 || srcStr == "" || index.Index >= tmplength {
-			rslt[index.Name] = nil
-		} else if index.Index < 0 {
+	for _, dst := range strproc.DstDescriptor {
+		var index int
+		if i, ok := dst.Dst.(int64); ok {
+			index = int(i)
+		} else {
+			rslt[dst.Name] = nil
+			continue
+		}
+
+		if tmplength == 0 || srcStr == "" || index >= tmplength {
+			rslt[dst.Name] = nil
+		} else if index < 0 {
 			//-100 to indicate return the result list directly
-			if index.Index == -100 && len(strproc.DstDescriptor) == 1 {
-				rslt[index.Name] = tmp
+			if index == -100 && len(strproc.DstDescriptor) == 1 {
+				rslt[dst.Name] = tmp
 			} else {
-				rslt[index.Name] = strings.TrimSpace(tmp[tmplength+index.Index])
+				rslt[dst.Name] = strings.TrimSpace(tmp[tmplength+index])
 			}
 		} else {
-			rslt[index.Name] = strings.TrimSpace(tmp[index.Index])
+			rslt[dst.Name] = strings.TrimSpace(tmp[index])
 		}
 	}
 
