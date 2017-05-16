@@ -445,6 +445,8 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 		return BoolFromInterface(src)
 	case "bson.RegEx":
 		return BsonRegExFromInterface(src)
+	case "json":
+		return json.Marshal(src)
 	default:
 		return nil, fmt.Errorf("The type(%s) is not supported right now", typeStr)
 	}
