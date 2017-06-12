@@ -447,6 +447,8 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 		return BsonRegExFromInterface(src)
 	case "json":
 		return json.Marshal(src)
+	case "jsonarray":
+		return json.Marshal(src)
 	default:
 		return nil, fmt.Errorf("The type(%s) is not supported right now", typeStr)
 	}
@@ -486,6 +488,22 @@ func (cmds *Command) UnmarshalJSON(b []byte) error {
 		return nil
 	} else if "single" == tmp.ItemType {
 		items := []Command{}
+		err := yaml.Unmarshal(*(tmp.Items), &items)
+		if err != nil {
+			return err
+		}
+		cmds.Value = items
+		return nil
+	} else if "json" == tmp.ItemType {
+		items := map[string]interface{}{}
+		err := yaml.Unmarshal(*(tmp.Items), &items)
+		if err != nil {
+			return err
+		}
+		cmds.Value = items
+		return nil
+	} else if "jsonarray" == tmp.ItemType {
+		var items []map[string]interface{}
 		err := yaml.Unmarshal(*(tmp.Items), &items)
 		if err != nil {
 			return err
@@ -798,4 +816,67 @@ func (bt *Batch) SetBatch(limit, offset int64) {
 	bt.Flag = true
 	bt.Limit = limit
 	bt.Offset = offset
+}
+
+type Table struct {
+	data    [][]interface{}
+	columns []string
+	cursor  int
+}
+
+func NewTable(capacity int) *Table {
+	var data [][]interface{}
+	if capacity > 0 {
+		data = make([][]interface{}, 0, capacity)
+	} else {
+		data = make([][]interface{}, 0)
+	}
+	return &Table{data: data}
+}
+
+func (t *Table) Close() error {
+	return nil
+}
+
+func (t *Table) SetColumns(cols []string) {
+	t.columns = cols
+}
+
+func (t *Table) SetData(data [][]interface{}) {
+	t.data = data
+}
+
+func (t *Table) GetData() [][]interface{} {
+	return t.data
+}
+
+func (t *Table) AppendData(data []interface{}) {
+	t.data = append(t.data, data)
+}
+
+func (t *Table) ResetCurosr() {
+	t.cursor = 0
+}
+
+func (t *Table) Columns() []string {
+	return t.columns
+}
+
+func (t *Table) Next(dst interface{}) error {
+	if t.cursor >= len(t.data) {
+		return fmt.Errorf("Reach the end of table")
+	}
+	if value, ok := dst.(**[]interface{}); ok {
+		*value = &t.data[t.cursor]
+	} else if value, ok := dst.(*interface{}); ok {
+		*value = t.data[t.cursor]
+	} else if value, ok := dst.([]interface{}); ok {
+		for i, k := range t.data[t.cursor] {
+			value[i] = k
+		}
+	} else {
+		fmt.Println("could not copy next in sql,", value)
+	}
+	t.cursor++
+	return nil
 }
