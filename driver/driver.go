@@ -1,6 +1,19 @@
 package driver
 
-import ()
+//UnquotedString is a special string that don't need to be quoted during sql building
+type UnquotedString struct {
+	Value string
+}
+
+//NewUnquotedString is the factory function to return a unquoted version string from input string literal
+func NewUnquotedString(val string) *UnquotedString {
+	result := &UnquotedString{Value: val}
+	return result
+}
+
+func (us UnquotedString) String() string {
+	return us.Value
+}
 
 //Interface of extract driver
 type ExtractDriver interface {

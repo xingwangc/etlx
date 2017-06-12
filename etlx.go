@@ -127,6 +127,33 @@ func LoadRegister(name string, driver driver.LoadDriver) {
 	drivers.Load[name] = driver
 }
 
+//FindExtracter is to find an extractor driver specify by its name, return nil if not found
+func FindExtracter(name string) driver.ExtractDriver {
+	drv, ok := drivers.Extract[name]
+	if !ok {
+		return nil
+	}
+	return drv
+}
+
+//FindTransformer is to find a transformer driver specify by its name, return nil if not found
+func FindTransformer(name string) driver.TransformDriver {
+	drv, ok := drivers.Transform[name]
+	if !ok {
+		return nil
+	}
+	return drv
+}
+
+//FindLoader is to find a loader driver specify by its name, return nil if not found
+func FindLoader(name string) driver.LoadDriver {
+	drv, ok := drivers.Load[name]
+	if !ok {
+		return nil
+	}
+	return drv
+}
+
 //Open init an transaction based on the name of extract, transfrom and load driver.
 func Open(eName, tName, lName string) (*Transaction, error) {
 	driverE, ok := drivers.Extract[eName]
