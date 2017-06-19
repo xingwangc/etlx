@@ -689,6 +689,11 @@ type StrProcessor struct {
 	ProcDescriptor string
 }
 
+//Provide a way to set command
+func (strproc *StrProcessor) SetCommand(cmd string) {
+	strproc.Command = cmd
+}
+
 func (strproc StrProcessor) regexProc(srcStr string) (map[string]interface{}, error) {
 	rslt := make(map[string]interface{})
 
