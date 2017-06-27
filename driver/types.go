@@ -510,6 +510,9 @@ func (cmds *Command) UnmarshalJSON(b []byte) error {
 		}
 		cmds.Value = items
 		return nil
+	} else if "raw" == tmp.ItemType {
+		cmds.Value = string(*tmp.Items)
+		return nil
 	} else if tmp.ItemType != "" && tmp.Items != nil {
 		var src interface{}
 		err := yaml.Unmarshal(*(tmp.Items), &src)
@@ -522,7 +525,6 @@ func (cmds *Command) UnmarshalJSON(b []byte) error {
 		}
 		cmds.Value = item
 	}
-
 	return nil
 }
 
@@ -832,6 +834,32 @@ func NewTable(capacity int) *Table {
 		data = make([][]interface{}, 0)
 	}
 	return &Table{data: data}
+}
+
+func NewTableFromMap(mapArr []map[string]interface{}) *Table {
+	tbl := NewTable(len(mapArr))
+
+	if mapArr == nil || len(mapArr) <= 0 {
+		return tbl
+	}
+
+	//extract the columns from the first element
+	columns := make([]string, 0, len(mapArr[0]))
+	for key := range mapArr[0] {
+		columns = append(columns, key)
+	}
+	tbl.SetColumns(columns)
+
+	//extract all data following the order of columns
+	for _, m := range mapArr {
+		data := make([]interface{}, len(columns), len(columns))
+		for cid, cname := range columns {
+			data[cid] = m[cname]
+		}
+		tbl.AppendData(data)
+	}
+
+	return tbl
 }
 
 func (t *Table) Close() error {
