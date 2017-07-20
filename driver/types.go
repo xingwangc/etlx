@@ -235,6 +235,10 @@ func MapFromInterface(val interface{}) (map[string]interface{}, error) {
 	switch val.(type) {
 	case map[string]interface{}:
 		return val.(map[string]interface{}), nil
+	case string:
+		m := make(map[string]interface{})
+		err := json.Unmarshal([]byte(val.(string)), &m)
+		return m, err
 	}
 
 	return map[string]interface{}{}, fmt.Errorf("Interface(%v) could not be converted to map[string]interface{}!\n", val)
