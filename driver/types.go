@@ -117,8 +117,15 @@ func IntFromInterface(val interface{}) (int64, error) {
 	}
 
 	switch val.(type) {
-	case float64:
-		return int64(val.(float64)), nil
+	case float64: //round the float
+		fval := val.(float64)
+		var ival int64
+		if fval >= 0 {
+			ival = int64(fval + 0.5)
+		} else {
+			ival = int64(fval - 0.5)
+		}
+		return ival, nil
 	case int64:
 		return val.(int64), nil
 	case int:
@@ -129,7 +136,7 @@ func IntFromInterface(val interface{}) (int64, error) {
 			return ival, err
 		}
 	}
-	return 0, fmt.Errorf("Interface(%v) could not be converted to Int!\n", val)
+	return 0, fmt.Errorf("Interface(value=%v, type=%v) could not be converted to Int!", val, reflect.TypeOf(val))
 }
 
 func FloatFromInterface(val interface{}) (float64, error) {
