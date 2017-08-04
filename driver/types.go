@@ -102,13 +102,49 @@ func BoolFromInterface(val interface{}) (bool, error) {
 	case bool:
 		return val.(bool), nil
 	case string:
-		if val.(string) == "true" {
+		strval := strings.ToLower(val.(string))
+		switch strval {
+		case "1", "true", "t", "y", "yes", "是":
 			return true, nil
-		} else {
+		case "0", "false", "f", "n", "no", "否", "不是":
 			return false, nil
 		}
 	}
 	return false, fmt.Errorf("Interface(%v) could not be converted to Bool!\n", val)
+}
+
+//ParseFloat converts a string to float number, it supports scientific notiation and comma seperated number
+func ParseFloat(str string) (float64, error) {
+	val, err := strconv.ParseFloat(str, 64)
+	if err == nil {
+		return val, nil
+	}
+
+	//Some number may be seperated by comma, for example, 23,120,123, so remove the comma firstly
+	str = strings.Replace(str, ",", "", -1)
+
+	//Some number is specifed in scientific notation
+	pos := strings.IndexAny(str, "eE")
+	if pos < 0 {
+		return strconv.ParseFloat(str, 64)
+	}
+
+	var baseVal float64
+	var expVal int64
+
+	baseStr := str[0:pos]
+	baseVal, err = strconv.ParseFloat(baseStr, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	expStr := str[(pos + 1):]
+	expVal, err = strconv.ParseInt(expStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return baseVal * math.Pow10(int(expVal)), nil
 }
 
 func IntFromInterface(val interface{}) (int64, error) {
@@ -131,9 +167,8 @@ func IntFromInterface(val interface{}) (int64, error) {
 	case int:
 		return int64(val.(int)), nil
 	case string:
-		ival, err := strconv.ParseInt(val.(string), 10, 64)
-		if err == nil {
-			return ival, err
+		if fval, err := ParseFloat(val.(string)); err == nil {
+			return int64(fval), nil
 		}
 	}
 	return 0, fmt.Errorf("Interface(value=%v, type=%v) could not be converted to Int!", val, reflect.TypeOf(val))
@@ -153,12 +188,11 @@ func FloatFromInterface(val interface{}) (float64, error) {
 	case int64:
 		return float64(val.(int64)), nil
 	case string:
-		fval, err := strconv.ParseFloat(val.(string), 64)
-		if err == nil {
-			return fval, err
+		if fval, err := ParseFloat(val.(string)); err == nil {
+			return fval, nil
 		}
 	}
-	return 0.0, fmt.Errorf("Interface(%v) Could not be converted to Float!\n", val)
+	return 0.0, fmt.Errorf("Interface(value=%v, type=%v) Could not be converted to Float!\n", val, reflect.TypeOf(val))
 }
 
 //convert the time format from 2006-1-2 to 2006-01-02 or 2006/1/2 to 2006/01/02
