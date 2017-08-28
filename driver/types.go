@@ -837,7 +837,7 @@ func (strproc StrProcessor) Process(srcStr string, srcMap map[string]interface{}
 	} else if str, ok := srcMap[strproc.SrcName]; ok {
 		obj, err := StringFromInterface(str)
 		if err != nil {
-			return map[string]interface{}{}, err
+			return map[string]interface{}{strproc.SrcName: nil}, err
 		}
 		strObj = obj
 	} else {
