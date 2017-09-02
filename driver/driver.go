@@ -1,5 +1,7 @@
 package driver
 
+import "errors"
+
 //UnquotedString is a special string that don't need to be quoted during sql building
 type UnquotedString struct {
 	Value string
@@ -53,6 +55,8 @@ type Load interface {
 	QueryFromNextStep() (Rows, error)
 	Close() error
 }
+
+var EOT = errors.New("End of table")
 
 //Interface to iterate rows
 type Rows interface {
