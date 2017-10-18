@@ -234,11 +234,22 @@ func formatTime(val string, format string) (string, error) {
 	return rslt, nil
 }
 
+func splitTimeValueLayout(input string) (val, layout string) {
+	const seperator = "::"
+	results := strings.Split(input, seperator)
+	if len(results) > 1 {
+		return results[0], results[1]
+	} else {
+		return results[0], ""
+	}
+}
+
 //layout string indicating which format of time to return. it could be:
 //	layout: "20160102"
 //		"2006-01-02"
 //		"2006/01/02"
 func TimeFromInterface(val interface{}, layout string) (time.Time, error) {
+	var err error
 	if nil == val {
 		return time.Now(), fmt.Errorf("Interface(%v) could not be converted to Time!\n", val)
 	}
@@ -248,12 +259,21 @@ func TimeFromInterface(val interface{}, layout string) (time.Time, error) {
 	case int:
 		return time.Unix(int64(val.(int)), 0), nil
 	case string:
-		timestr, err := formatTime(val.(string), layout)
-		if err != nil {
-			return time.Now(), fmt.Errorf("Interface(%v) could not be converted to Time!\n", val)
+		timeStr, embedLayout := splitTimeValueLayout(val.(string))
+		if len(embedLayout) <= 0 {
+			timeStr, err = formatTime(timeStr, layout)
+			if err != nil {
+				return time.Now(), fmt.Errorf("Interface(%v) could not be converted to Time!\n", val)
+			}
+		} else {
+			layout = embedLayout
 		}
+		// timestr, err := formatTime(val.(string), layout)
+		// if err != nil {
+		// 	return time.Now(), fmt.Errorf("Interface(%v) could not be converted to Time!\n", val)
+		// }
 
-		tval, err := time.Parse(layout, timestr)
+		tval, err := time.ParseInLocation(layout, timeStr, time.Local)
 		//tval, err := time.Parse(layout, val.(string))
 		if err == nil {
 			return tval, err
@@ -470,7 +490,7 @@ func JsonFromMap(src map[string]interface{}, columns []string, template map[stri
 	return json.Marshal(container)
 }
 
-func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
+func StrToType(typeStr string, src interface{}, layout ...string) (dst interface{}, err error) {
 	switch typeStr {
 	case "int":
 		return IntFromInterface(src)
@@ -483,6 +503,9 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 	case "map":
 		return MapFromInterface(src)
 	case "time":
+		if len(layout) > 0 {
+			return TimeFromInterface(src, layout[0])
+		}
 		return TimeFromInterface(src, "2006-01-02")
 	case "geometry":
 		return GeometryFromInterface(src)
@@ -501,9 +524,10 @@ func StrToType(typeStr string, src interface{}) (dst interface{}, err error) {
 
 //Define a common comman arguments for any objects.
 type Command struct {
-	Name  string      `json:"name"`
-	Type  string      `json:"type"`
-	Value interface{} `json:"value"`
+	Name  string           `json:"name"`
+	Type  string           `json:"type"`
+	Value interface{}      `json:"value"`
+	Arg   *json.RawMessage `json:"arg"`
 }
 
 //unmarshal the json string to command
@@ -513,6 +537,7 @@ func (cmds *Command) UnmarshalJSON(b []byte) error {
 		CmdType  string           `json:"name"`
 		ItemType string           `json:"type"`
 		Items    *json.RawMessage `json:"value"`
+		Arg      *json.RawMessage `json:"arg"`
 	}
 
 	err := yaml.Unmarshal(b, &tmp)
@@ -522,6 +547,7 @@ func (cmds *Command) UnmarshalJSON(b []byte) error {
 
 	cmds.Name = tmp.CmdType
 	cmds.Type = tmp.ItemType
+	cmds.Arg = tmp.Arg
 
 	if "complex" == tmp.ItemType {
 		items := []Command{}
