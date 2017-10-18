@@ -1,15 +1,10 @@
 package etlx
 
 import (
-	"fmt"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/xingwangc/etlx/driver"
-)
-
-const (
-	EXTRACT_DONE_SIGNAL   = "extract done"
-	TRANSFORM_DONE_SIGNAL = "transform done"
 )
 
 // A driver warehouse to register dirvers for different phases and different process.
@@ -19,56 +14,6 @@ type EtlDriver struct {
 	Extract   map[string]driver.ExtractDriver
 	Transform map[string]driver.TransformDriver
 	Load      map[string]driver.LoadDriver
-}
-
-type DataSource struct {
-	//extract type
-	phase string
-	//subtype of the Extract transaction, e.g. txt, excel, csv, posgtres, mssql
-	name string
-	//data source string to extract, for file it should be file name, for sql it should be the dscp
-	dataSource string
-}
-
-// Generally, 1 Transaction is consist with 3 steps: extracting -> transforming -> loading.
-// For SQL、Nosql process, 1 transaction also could be handled in batch.
-type Transaction struct {
-	offset int64
-	limit  int64
-
-	//drivers for the transtraction
-	extractDriver   driver.ExtractDriver
-	transformDriver driver.TransformDriver
-	loadDriver      driver.LoadDriver
-
-	//Data source name for each phases of the transaction.
-	//Different businesses may have different layout of the dsn.
-	//Mostly this infor should be transfered to the driver.
-	extractDsn   DataSource
-	transformDsn DataSource
-	loadDsn      DataSource
-
-	//handlers returned by each driver to extract, transform and load data.
-	extractHandler   driver.Extract
-	transformHandler driver.Transform
-	loadHandler      driver.Load
-
-	//Interface to access the extracting results.
-	//When extracting phashe is completing, this will be transfered to transforming handler.
-	extractCh      chan string
-	extractResults driver.Rows
-
-	//Interface to access the transforming results.
-	//When transforming phase complete, this will be transfered to loading phase
-	transformCh      chan string
-	transformResults driver.Results
-
-	//Interface to access the loading results if the results is stored in some temporayi
-	//storage.
-	//This only could the be used if there are some transactions depends on the results
-	//of this transaction.
-	loadCh      chan string
-	loadResults driver.Results
 }
 
 var (
@@ -127,8 +72,8 @@ func LoadRegister(name string, driver driver.LoadDriver) {
 	drivers.Load[name] = driver
 }
 
-//FindExtracter is to find an extractor driver specify by its name, return nil if not found
-func FindExtracter(name string) driver.ExtractDriver {
+//FindExtract is to find an extractor driver specify by its name, return nil if not found
+func FindExtract(name string) driver.ExtractDriver {
 	drv, ok := drivers.Extract[name]
 	if !ok {
 		return nil
@@ -136,8 +81,8 @@ func FindExtracter(name string) driver.ExtractDriver {
 	return drv
 }
 
-//FindTransformer is to find a transformer driver specify by its name, return nil if not found
-func FindTransformer(name string) driver.TransformDriver {
+//FindTransform is to find a transformer driver specify by its name, return nil if not found
+func FindTransform(name string) driver.TransformDriver {
 	drv, ok := drivers.Transform[name]
 	if !ok {
 		return nil
@@ -145,8 +90,8 @@ func FindTransformer(name string) driver.TransformDriver {
 	return drv
 }
 
-//FindLoader is to find a loader driver specify by its name, return nil if not found
-func FindLoader(name string) driver.LoadDriver {
+//FindLoad is to find a loader driver specify by its name, return nil if not found
+func FindLoad(name string) driver.LoadDriver {
 	drv, ok := drivers.Load[name]
 	if !ok {
 		return nil
@@ -154,187 +99,89 @@ func FindLoader(name string) driver.LoadDriver {
 	return drv
 }
 
-//Open init an transaction based on the name of extract, transfrom and load driver.
-func Open(eName, tName, lName string) (*Transaction, error) {
-	driverE, ok := drivers.Extract[eName]
-	if !ok {
-		return nil, fmt.Errorf("etlx: Do not find the Extract driver for name:%s", eName)
-	}
-	driverT, ok := drivers.Transform[tName]
-	if !ok {
-		return nil, fmt.Errorf("etlx: Do not find the Transform driver for name:%s", tName)
-	}
-	driverL, ok := drivers.Load[lName]
-	if !ok {
-		return nil, fmt.Errorf("etlx: Do not find the Load driver for name:%s", lName)
-	}
-
-	tsact := &Transaction{
-		extractDriver:   driverE,
-		transformDriver: driverT,
-		loadDriver:      driverL,
-	}
-
-	tsact.extractCh = make(chan string)
-	tsact.transformCh = make(chan string)
-	tsact.limit = 0 //set default batch size to 0
-	tsact.offset = 0
-
-	return tsact, nil
+type ExtractHandler struct {
+	Handler driver.Extract
+	Arg     interface{}
 }
 
-//ExtractOpen init the extract driver and get the extract handler from driver.
-func (t *Transaction) ExtractOpen(etype, name, dataSource string) error {
-	if name == "" || dataSource == "" {
-		return fmt.Errorf("Should provide extract name and datasource to init Extract")
+func NewExtract(driverName, name, dataSource string, rawArg []driver.Command) (*ExtractHandler, error) {
+	drv := FindExtract(driverName)
+	if drv == nil {
+		return nil, errors.Errorf("Could not find the extract driver from name %s", driverName)
 	}
 
-	t.extractDsn.phase = etype
-	t.extractDsn.name = name
-	t.extractDsn.dataSource = dataSource
-
-	handler, err := t.extractDriver.Open(name, dataSource)
-	t.extractHandler = handler
-	return err
-}
-
-//TransformOpen init the transform driver and get the transform handler from driver.
-func (t *Transaction) TransformOpen(ttype, name, dataSource string) error {
-	t.transformDsn.phase = ttype
-	t.transformDsn.name = name
-	t.transformDsn.dataSource = dataSource
-
-	handler, err := t.transformDriver.Open(name, dataSource)
-	t.transformHandler = handler
-	return err
-}
-
-//LoadOpen init the load driver and get the load handler from driver.
-func (t *Transaction) LoadOpen(ltype, name, dataSource string) error {
-	t.loadDsn.phase = ltype
-	t.loadDsn.name = name
-	t.loadDsn.dataSource = dataSource
-
-	handler, err := t.loadDriver.Open(name, dataSource)
-	t.loadHandler = handler
-	return err
-}
-
-func (t *Transaction) extract(args []driver.Command) error {
-	cmd, err := t.extractHandler.Command(args)
+	handler, err := drv.Open(name, dataSource)
 	if err != nil {
-		fmt.Println("Extract Cmd error:", err)
-		return err
+		return nil, err
 	}
-	fmt.Println("Extract Command:", cmd)
-	results, err := t.extractHandler.Query(cmd)
+
+	var arg interface{}
+	arg, err = handler.Command(rawArg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	t.extractResults = results
-	//	t.extractCh <- EXTRACT_DONE_SIGNAL
-
-	return nil
+	return &ExtractHandler{Handler: handler, Arg: arg}, nil
 }
 
-func (t *Transaction) transform(args []driver.Command) error {
-	cmd, err := t.transformHandler.Command(args)
+func (ctx *ExtractHandler) Run() (driver.Rows, error) {
+	return ctx.Handler.Query(ctx.Arg)
+}
+
+type TransformHandler struct {
+	Handler driver.Transform
+	Arg     interface{}
+}
+
+func NewTransform(driverName, name, dataSource string, rawArg []driver.Command) (*TransformHandler, error) {
+	drv := FindTransform(driverName)
+	if drv == nil {
+		return nil, errors.Errorf("Could not find the transform driver from name %s", driverName)
+	}
+
+	handler, err := drv.Open(name, dataSource)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	//	sig := <-t.extractCh
-	//	fmt.Println("extract signal:", sig)
-	//	if sig != EXTRACT_DONE_SIGNAL {
-	//		return fmt.Errorf("Got the wrong signal from extract %v\n", sig)
-	//	}
-
-	results, err := t.transformHandler.Exec(t.extractResults, cmd)
+	var arg interface{}
+	arg, err = handler.Command(rawArg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	t.transformResults = results
-	//	t.transformCh <- TRANSFORM_DONE_SIGNAL
-
-	return nil
+	return &TransformHandler{Handler: handler, Arg: arg}, nil
 }
 
-func (t *Transaction) load(args []driver.Command) error {
-	cmd, err := t.loadHandler.Command(args)
+func (ctx *TransformHandler) Run(src driver.Rows) (driver.Results, error) {
+	return ctx.Handler.Exec(src, ctx.Arg)
+}
+
+type LoadHandler struct {
+	Handler driver.Load
+	Arg     interface{}
+}
+
+func NewLoad(driverName string, name string, dataSource string, rawArg []driver.Command) (*LoadHandler, error) {
+	drv := FindLoad(driverName)
+	if drv == nil {
+		return nil, errors.Errorf("Could not find the load driver from name %s", driverName)
+	}
+
+	handler, err := drv.Open(name, dataSource)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	//	sig := <-t.transformCh
-	//	fmt.Println("transform signal:", sig)
-	//	if sig != TRANSFORM_DONE_SIGNAL {
-	//		return fmt.Errorf("Got the wrong signal from transform %v\n", sig)
-	//	}
-	return t.loadHandler.Load(t.transformResults, cmd)
-}
-
-func (t *Transaction) Exec(extArgs []driver.Command, transArgs []driver.Command, loadArgs []driver.Command) error {
-	fmt.Println("extract cmd", extArgs)
-	fmt.Println("transform cmd", transArgs)
-	fmt.Println("load cmd", loadArgs)
-	err := t.extract(extArgs)
+	var arg interface{}
+	arg, err = handler.Command(rawArg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	err = t.transform(transArgs)
-	if err != nil {
-		return err
-	}
-	err = t.load(loadArgs)
-	if err != nil {
-		return err
-	}
-	//go t.extract(extArgs)
-	//go t.transform(transArgs)
-	//go t.load(loadArgs)
 
-	return nil
+	return &LoadHandler{Handler: handler, Arg: arg}, nil
 }
 
-func (t *Transaction) SetBatchSize(batch int64) {
-	if t.limit == 0 {
-		t.limit = batch
-	} else {
-		t.offset += t.limit
-		t.limit = batch
-	}
-	t.extractHandler.SetBatch(t.limit, t.offset)
-}
-
-func (t *Transaction) updateOffset(offset int64) {
-	t.offset = offset
-}
-
-func (t *Transaction) extractClose() error {
-	return t.extractHandler.Close()
-}
-
-func (t *Transaction) transformClose() error {
-	return t.transformHandler.Close()
-}
-
-func (t *Transaction) loadClose() error {
-	return t.loadHandler.Close()
-}
-
-func (t *Transaction) Close() []error {
-	errSlice := []error{}
-
-	err := t.extractClose()
-	errSlice = append(errSlice, err)
-
-	err = t.transformClose()
-	errSlice = append(errSlice, err)
-
-	err = t.loadClose()
-	errSlice = append(errSlice, err)
-
-	return errSlice
+func (ctx *LoadHandler) Run(result driver.Results) error {
+	return ctx.Handler.Load(result, ctx.Arg)
 }
