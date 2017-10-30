@@ -2,6 +2,8 @@ package etlx
 
 import (
 	"fmt"
+	"runtime"
+	"sync"
 
 	"github.com/xingwangc/etlx/driver"
 )
@@ -23,8 +25,11 @@ type DataSource struct {
 // Generally, 1 Transaction is consist with 3 steps: extracting -> transforming -> loading.
 // For SQL、Nosql process, 1 transaction also could be handled in batch.
 type Transaction struct {
-	offset int64
-	limit  int64
+	batchCtl   string
+	batchSize  int64
+	offset     int64
+	limit      int64
+	batchMutex sync.Mutex
 
 	//drivers for the transtraction
 	extractDriver   driver.ExtractDriver
@@ -45,24 +50,33 @@ type Transaction struct {
 
 	//Interface to access the extracting results.
 	//When extracting phashe is completing, this will be transfered to transforming handler.
-	extractCh      chan string
 	extractResults driver.Rows
 
 	//Interface to access the transforming results.
 	//When transforming phase complete, this will be transfered to loading phase
-	transformCh      chan string
 	transformResults driver.Results
 
 	//Interface to access the loading results if the results is stored in some temporayi
 	//storage.
 	//This only could the be used if there are some transactions depends on the results
 	//of this transaction.
-	loadCh      chan string
 	loadResults driver.Results
 }
 
+func BatchEnable(ctl string, size int64) func(*Transaction) {
+	return func(t *Transaction) {
+		t.batchMutex.Lock()
+		defer t.batchMutex.Unlock()
+
+		t.batchCtl = ctl
+		t.batchSize = size
+		t.limit = t.batchSize
+		t.offset = 0
+	}
+}
+
 //Open init an transaction based on the name of extract, transfrom and load driver.
-func Open(eName, tName, lName string) (*Transaction, error) {
+func Open(eName, tName, lName string, options ...func(*Transaction)) (*Transaction, error) {
 	driverE, ok := drivers.Extract[eName]
 	if !ok {
 		return nil, fmt.Errorf("etlx: Do not find the Extract driver for name:%s", eName)
@@ -82,10 +96,14 @@ func Open(eName, tName, lName string) (*Transaction, error) {
 		loadDriver:      driverL,
 	}
 
-	tsact.extractCh = make(chan string)
-	tsact.transformCh = make(chan string)
-	tsact.limit = 0 //set default batch size to 0
+	tsact.batchCtl = "disable"
+	tsact.batchSize = 0
+	tsact.limit = 0
 	tsact.offset = 0
+
+	for _, opt := range options {
+		opt(tsact)
+	}
 
 	return tsact, nil
 }
@@ -127,85 +145,125 @@ func (t *Transaction) LoadOpen(ltype, name, dataSource string) error {
 	return err
 }
 
-func (t *Transaction) extract(args []driver.Command) error {
+func (t *Transaction) extract(args []driver.Command, rows *driver.Rows) error {
 	cmd, err := t.extractHandler.Command(args)
 	if err != nil {
 		fmt.Println("Extract Cmd error:", err)
 		return err
 	}
-	fmt.Println("Extract Command:", cmd)
+
 	results, err := t.extractHandler.Query(cmd)
 	if err != nil {
 		return err
 	}
 
 	t.extractResults = results
-	//	t.extractCh <- EXTRACT_DONE_SIGNAL
+	*rows = results
 
 	return nil
 }
 
-func (t *Transaction) transform(args []driver.Command) error {
+func (t *Transaction) transform(args []driver.Command, rows driver.Rows, rslt *driver.Results) error {
 	cmd, err := t.transformHandler.Command(args)
 	if err != nil {
 		return err
 	}
 
-	//	sig := <-t.extractCh
-	//	fmt.Println("extract signal:", sig)
-	//	if sig != EXTRACT_DONE_SIGNAL {
-	//		return fmt.Errorf("Got the wrong signal from extract %v\n", sig)
-	//	}
-
-	results, err := t.transformHandler.Exec(t.extractResults, cmd)
+	results, err := t.transformHandler.Exec(rows, cmd)
 	if err != nil {
 		return err
 	}
 
 	t.transformResults = results
-	//	t.transformCh <- TRANSFORM_DONE_SIGNAL
+	*rslt = results
 
 	return nil
 }
 
-func (t *Transaction) load(args []driver.Command) error {
+func (t *Transaction) load(args []driver.Command, rows driver.Results) error {
 	cmd, err := t.loadHandler.Command(args)
 	if err != nil {
 		return err
 	}
 
-	//	sig := <-t.transformCh
-	//	fmt.Println("transform signal:", sig)
-	//	if sig != TRANSFORM_DONE_SIGNAL {
-	//		return fmt.Errorf("Got the wrong signal from transform %v\n", sig)
-	//	}
-	return t.loadHandler.Load(t.transformResults, cmd)
+	return t.loadHandler.Load(rows, cmd)
 }
 
-func (t *Transaction) Exec(extArgs []driver.Command, transArgs []driver.Command, loadArgs []driver.Command) error {
-	fmt.Println("extract cmd", extArgs)
-	fmt.Println("transform cmd", transArgs)
-	fmt.Println("load cmd", loadArgs)
-	err := t.extract(extArgs)
+func (t *Transaction) execTransLoad(rows driver.Rows, transArgs []driver.Command, loadArgs []driver.Command) error {
+	rslt := new(driver.Results)
+	err := t.transform(transArgs, rows, rslt)
 	if err != nil {
 		return err
 	}
-	err = t.transform(transArgs)
+	err = t.load(loadArgs, *rslt)
 	if err != nil {
 		return err
 	}
-	err = t.load(loadArgs)
-	if err != nil {
-		return err
-	}
-	//go t.extract(extArgs)
-	//go t.transform(transArgs)
-	//go t.load(loadArgs)
 
 	return nil
 }
 
+func (t *Transaction) Exec(extArgs []driver.Command, transArgs []driver.Command, loadArgs []driver.Command) error {
+	if t.batchCtl == "enable" {
+		wg := sync.WaitGroup{}
+		queue := make(chan driver.Rows, runtime.NumCPU())
+
+		for {
+			rows := new(driver.Rows)
+			err := t.extract(extArgs, rows)
+			if err != nil {
+				break
+			}
+			wg.Add(1)
+			go func() {
+				r := <-queue
+				t.execTransLoad(r, transArgs, loadArgs)
+				wg.Done()
+			}()
+			queue <- *rows
+			t.FlashBatch()
+		}
+		wg.Wait()
+
+	} else {
+		rows := new(driver.Rows)
+		rslt := new(driver.Results)
+
+		err := t.extract(extArgs, rows)
+		if err != nil {
+			return err
+		}
+
+		err = t.transform(transArgs, *rows, rslt)
+		if err != nil {
+			return err
+		}
+		err = t.load(loadArgs, *rslt)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (t *Transaction) FlashBatch() {
+	t.batchMutex.Lock()
+	defer t.batchMutex.Unlock()
+
+	if t.limit == 0 {
+		t.limit = t.batchSize
+	} else {
+		t.offset += t.limit
+		t.limit = t.batchSize
+	}
+	t.extractHandler.SetBatch(t.limit, t.offset)
+}
+
 func (t *Transaction) SetBatchSize(batch int64) {
+	t.batchMutex.Lock()
+	defer t.batchMutex.Unlock()
+
 	if t.limit == 0 {
 		t.limit = batch
 	} else {
