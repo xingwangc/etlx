@@ -70,7 +70,7 @@ func BatchEnable(ctl string, size int64) func(*Transaction) {
 
 		t.batchCtl = ctl
 		t.batchSize = size
-		t.limit = t.batchSize
+		t.limit = 0
 		t.offset = 0
 	}
 }
@@ -210,6 +210,7 @@ func (t *Transaction) Exec(extArgs []driver.Command, transArgs []driver.Command,
 
 		for {
 			rows := new(driver.Rows)
+			t.FlashBatch()
 			err := t.extract(extArgs, rows)
 			if err != nil {
 				break
@@ -221,7 +222,6 @@ func (t *Transaction) Exec(extArgs []driver.Command, transArgs []driver.Command,
 				wg.Done()
 			}()
 			queue <- *rows
-			t.FlashBatch()
 		}
 		wg.Wait()
 
